@@ -253,6 +253,27 @@ install_java() {
 	fi
 }
 
+disable_ipv6() {
+    if [ "$DISABLE_IPV6" == "YES" ]; then
+        echo "disable_ipv6() : Attempting to disable IPv6"
+        # Disable IPv6 on all interfaces
+        sysctl -w net.ipv6.conf.all.disable_ipv6=1
+        sysctl -w net.ipv6.conf.default.disable_ipv6=1
+        # Note: We skip 'lo' (loopback) to avoid potential internal issues, but 'all' and 'default' should be sufficient.
+    fi
+}
+
+enable_ipv6() {
+    if [ "$DISABLE_IPV6" == "YES" ]; then
+    # Enable IPv6 on all interfaces
+    echo "enable_ipv6() : Attempting to enable IPv6"
+    echo "You can check if IPv6 is active again with sysctl -w net.ipv6.conf.all.disable_ipv6 it should retrun 0"
+    sysctl -w net.ipv6.conf.all.disable_ipv6=0
+    sysctl -w net.ipv6.conf.default.disable_ipv6=0
+    # Note: We skip 'lo' (loopback) to avoid potential internal issues, but 'all' and 'default' should be sufficient.
+    fi
+}
+
 # Support alternative DNS resolvers
 if [ "${DNS_RESOLVERS}" != "" ]; then
 	LEGO_ARGS="${LEGO_ARGS} --dns.resolvers ${DNS_RESOLVERS}"
@@ -272,6 +293,7 @@ create_services)
 	create_services
 	;;
 initial)
+	disable_ipv6
 	install_lego
 	install_java
 	create_services
@@ -280,6 +302,7 @@ initial)
 	${LEGO_BINARY} --path "${LEGO_PATH}" ${LEGO_ARGS} --accept-tos run && deploy_certs_if_updated && restart_services
 	echo "initial(): Starting udm-le systemd timer"
 	systemctl start udm-le.timer
+	enable_ipv6
 	;;
 install_lego)
 	echo "install_lego(): Forcing installation of lego"
@@ -292,9 +315,11 @@ install_java)
 	install_java
 	;;
 renew)
+	disable_ipv6
 	echo "renew(): Attempting certificate renewal"
 	echo "renew(): ${LEGO_BINARY} --path \"${LEGO_PATH}\" ${LEGO_ARGS} renew --days ${CERT_DAYS_BEFORE_RENEWAL:-30}"
 	${LEGO_BINARY} --path "${LEGO_PATH}" ${LEGO_ARGS} renew --days "${CERT_DAYS_BEFORE_RENEWAL:-30}" && deploy_certs_if_updated && restart_services
+	enable_ipv6
 	;;
 test_deploy)
 	echo "test_deploy(): Attempting to deploy certificate"
